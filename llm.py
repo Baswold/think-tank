@@ -75,5 +75,11 @@ def call(
             f"LM Studio did not respond within {timeout}s. "
             "Try a smaller model, or raise llm_timeout_seconds in config.json."
         )
+    except requests.HTTPError:
+        try:
+            detail = resp.json()
+        except Exception:
+            detail = resp.text
+        raise RuntimeError(f"LM Studio {resp.status_code}: {detail}")
     raw = resp.json()["choices"][0]["message"]["content"]
     return _strip_reasoning(raw)
