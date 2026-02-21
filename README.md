@@ -50,7 +50,7 @@ LOADING → TARGETING → DEPLOYED ───────────────
 
 - [LM Studio](https://lmstudio.ai) with the local server enabled
 - Python 3.10+
-- `pip install requests rich`
+- `pip install requests rich questionary`
 
 ---
 
@@ -66,30 +66,29 @@ pip install -r requirements.txt
 
 ## Usage
 
-1. Start LM Studio, load a model, and enable the local server (`localhost:1234`)
-2. Edit `task.md` to describe what you want ideas about
-3. Run:
+Start LM Studio, load a model, enable the local server, then:
 
 ```bash
-# auto-detects whichever model is loaded in LM Studio
-python idea_loop.py
-
-# or specify a model and limits explicitly
-python idea_loop.py --model qwen2.5:14b --max-ideas 50 --max-hours 8
-
-# point at a different task file
-python idea_loop.py my_task.md --max-ideas 20
+python think_tank.py
 ```
 
-Press `Ctrl+C` to stop gracefully — the current cycle finishes and state is saved.
+That's it. From there you can navigate to:
 
-### Reviewing results in the morning
+- **New session** — paste a plain-language prompt and the model structures it into `task.md`, then optionally kick off the loop immediately
+- **Resume** — pick up a previous run (state is fully persistent)
+- **View ideas** — browse deployed ideas with arrow keys, select one to read in full
+- **Settings** — change model, temperatures, limits; save to `config.json`
+
+Press `Ctrl+C` at any time during a loop run to stop gracefully — the current cycle finishes and state is saved.
+
+### CLI access (optional)
+
+The underlying scripts are still usable directly if you prefer:
 
 ```bash
-python view_ideas.py           # index summary (one line per idea)
-python view_ideas.py --full    # full text of every idea file
-python view_ideas.py --state   # deployed / misfired counts, runtime
-python view_ideas.py --count   # just the number
+python idea_loop.py -p "ways to sort a list in Python"   # prompt → task.md → loop
+python idea_loop.py --max-ideas 20 --max-hours 2
+python view_ideas.py --full
 ```
 
 ---
