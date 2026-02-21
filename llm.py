@@ -38,10 +38,19 @@ def call(
 ) -> str:
     """Send a chat prompt to the server and return the response text.
 
-    Works with LM Studio (default), Ollama (/v1 mode), or any OpenAI-compatible
-    endpoint. Set LM_STUDIO_API_KEY if you have token auth enabled in LM Studio
-    settings; otherwise no key is needed.
+    If model is empty, auto-detects whichever model is currently loaded in
+    LM Studio. This happens fresh on every call, so switching models in LM
+    Studio mid-run is picked up automatically.
     """
+    if not model:
+        loaded = list_models(base_url)
+        if not loaded:
+            raise RuntimeError(
+                f"No model loaded at {base_url}. "
+                "Load a model in LM Studio and enable the local server."
+            )
+        model = loaded[0]
+
     url = f"{base_url}/chat/completions"
 
     headers = {"Content-Type": "application/json"}

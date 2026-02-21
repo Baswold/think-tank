@@ -437,7 +437,12 @@ def run(config: Config) -> None:
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def _resolve_model(config: Config) -> None:
-    """Auto-detect the loaded model if none is set. Exits on failure."""
+    """Validate that LM Studio is reachable and has a model loaded.
+
+    Does not pin the model name — llm.call() detects fresh per-call when
+    config.model is empty, so switching models in LM Studio is picked up
+    automatically without restarting.
+    """
     if not config.model:
         models = llm.list_models(config.base_url)
         if not models:
@@ -447,7 +452,7 @@ def _resolve_model(config: Config) -> None:
                 file=sys.stderr,
             )
             sys.exit(1)
-        config.model = models[0]
+        # Don't store — keep config.model empty so each call auto-detects fresh
 
 
 def format_task(raw_prompt: str, config: Config) -> str:

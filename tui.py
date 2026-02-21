@@ -127,7 +127,7 @@ class TUI:
         header_text = Text(justify="center")
         header_text.append("think-tank\n", style="bold white")
         header_text.append("fire ideas, not missiles  ·  ", style="dim italic")
-        header_text.append(self.config.model, style="dim cyan")
+        header_text.append(self.config.model or "(auto)", style="dim cyan")
         layout["header"].update(Panel(Align.center(header_text), style="blue", padding=(0, 2)))
 
         # ── Stats ─────────────────────────────────────────────────────────────
