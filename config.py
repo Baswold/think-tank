@@ -13,7 +13,7 @@ class Config:
     base_url: str = "http://localhost:1234/v1"   # LM Studio default
     generator_temperature: float = 0.95
     reviewer_temperature: float = 0.2
-    llm_timeout_seconds: int = 120
+    llm_timeout_seconds: int = 300
 
     # Loop limits
     max_ideas: int = 50

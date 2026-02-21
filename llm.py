@@ -58,7 +58,13 @@ def call(
         "temperature": temperature,
     }
 
-    resp = requests.post(url, json=payload, headers=headers, timeout=timeout)
-    resp.raise_for_status()
+    try:
+        resp = requests.post(url, json=payload, headers=headers, timeout=timeout)
+        resp.raise_for_status()
+    except requests.Timeout:
+        raise TimeoutError(
+            f"LM Studio did not respond within {timeout}s. "
+            "Try a smaller model, or raise llm_timeout_seconds in config.json."
+        )
     raw = resp.json()["choices"][0]["message"]["content"]
     return _strip_reasoning(raw)
