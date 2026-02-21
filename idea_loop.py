@@ -2,15 +2,16 @@
 """think-tank — autonomous divergent idea generation.
 
 Runs a generator agent (high temperature) and a reviewer agent (low temperature)
-in a loop using OpenRouter. Run overnight to fill a directory with genuinely
+in a loop using LM Studio. Run overnight to fill a directory with genuinely
 diverse ideas on any topic.
 
 Usage:
-    python idea_loop.py [task.md] [--model MODEL] [--max-ideas N] [--verbose]
+    python idea_loop.py [task.md] [--model MODEL] [--max-ideas N]
+    python idea_loop.py -p "ways to visualize sorting algorithms in Python"
     python idea_loop.py --help
 
 Environment:
-    OPENROUTER_API_KEY   Required. Get one at https://openrouter.ai/keys
+    LM_STUDIO_API_KEY   Optional. Only needed if token auth is enabled in LM Studio.
 """
 
 import argparse
@@ -69,6 +70,24 @@ REASON: [one sentence]
 
 DECISION: REJECT
 REASON: [one sentence — name the existing idea it duplicates]"""
+
+TASK_FORMATTER_SYSTEM = """\
+You are a task formatter for think-tank, an autonomous idea generation system.
+
+The user will describe what they want to brainstorm about in plain language.
+Rewrite it as a structured task file in EXACTLY this format — no extra text:
+
+# Task
+
+[a clear, direct statement of the brainstorming goal]
+
+## Constraints
+- [keep ideas grounded — e.g. library restrictions, scope, format]
+- [add 2–4 constraints total, as appropriate]
+
+## Scoring (for the reviewer)
+An idea is TOO SIMILAR if [specific criterion for what makes two ideas duplicates].
+An idea is NOVEL ENOUGH if [specific criterion for genuine novelty]."""
 
 
 # ── Data structures ───────────────────────────────────────────────────────────
@@ -304,18 +323,7 @@ def run(config: Config) -> None:
         print(f"Error: task file not found: {config.task_file}", file=sys.stderr)
         sys.exit(1)
 
-    # Auto-detect model from LM Studio if none specified
-    if not config.model:
-        models = llm.list_models(config.base_url)
-        if not models:
-            print(
-                f"Error: no model specified and none found at {config.base_url}/models\n"
-                "Start LM Studio, load a model, and enable the local server.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        config.model = models[0]
-        print(f"Auto-detected model: {config.model}")
+    _resolve_model(config)
 
     task = Path(config.task_file).read_text().strip()
     ideas_dir = Path(config.ideas_dir)
@@ -428,6 +436,32 @@ def run(config: Config) -> None:
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
+def _resolve_model(config: Config) -> None:
+    """Auto-detect the loaded model if none is set. Exits on failure."""
+    if not config.model:
+        models = llm.list_models(config.base_url)
+        if not models:
+            print(
+                f"Error: no model found at {config.base_url}/models\n"
+                "Start LM Studio, load a model, and enable the local server.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        config.model = models[0]
+
+
+def format_task(raw_prompt: str, config: Config) -> str:
+    """Pass a free-form description through the model to produce a structured task.md."""
+    return llm.call(
+        prompt=raw_prompt,
+        system=TASK_FORMATTER_SYSTEM,
+        model=config.model,
+        temperature=0.3,
+        base_url=config.base_url,
+        timeout=config.llm_timeout_seconds,
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="think-tank — autonomous divergent idea generation",
@@ -437,16 +471,21 @@ environment:
   LM_STUDIO_API_KEY    Optional. Only needed if you enabled token auth in LM Studio settings.
 
 examples:
-  python idea_loop.py                          # auto-detect loaded model
-  python idea_loop.py --model my-model-id      # specify model explicitly
+  python idea_loop.py                                    # auto-detect loaded model
+  python idea_loop.py -p "ways to sort a list in Python" # generate task.md from prompt
+  python idea_loop.py -p -                               # paste multi-line prompt (Ctrl+D to finish)
   python idea_loop.py my_task.md --max-ideas 20 --max-hours 2
-  python idea_loop.py --base-url http://localhost:1234/v1
+  python idea_loop.py --model my-model-id
   python idea_loop.py --config my_config.json
         """,
     )
     parser.add_argument(
         "task_file", nargs="?", default="task.md",
         help="Path to the task description file (default: task.md)"
+    )
+    parser.add_argument(
+        "-p", "--prompt", metavar="TEXT",
+        help='Generate task.md from a plain-language description. Pass - to read from stdin.',
     )
     parser.add_argument("--model", help="LM Studio model ID (default: auto-detect)")
     parser.add_argument("--base-url", help="LM Studio server URL (default: http://localhost:1234/v1)")
@@ -464,13 +503,48 @@ examples:
     config = Config.load(args.config)
     config.task_file = args.task_file
 
-    if args.model:            config.model = args.model
-    if args.base_url:         config.base_url = args.base_url
+    if args.model:                   config.model = args.model
+    if args.base_url:                config.base_url = args.base_url
     if args.max_ideas is not None:   config.max_ideas = args.max_ideas
     if args.max_hours is not None:   config.max_runtime_hours = args.max_hours
     if args.max_retries is not None: config.max_retries = args.max_retries
     if args.max_failures is not None: config.max_consecutive_failures = args.max_failures
     if args.ideas_dir:               config.ideas_dir = args.ideas_dir
+
+    # ── Prompt → task.md ──────────────────────────────────────────────────────
+    if args.prompt is not None:
+        raw = args.prompt
+        if raw == "-":
+            print("Paste your task description, then press Ctrl+D:")
+            print()
+            raw = sys.stdin.read().strip()
+
+        if not raw:
+            print("Error: prompt is empty.", file=sys.stderr)
+            sys.exit(1)
+
+        _resolve_model(config)
+        print(f"Formatting task with {config.model}...\n")
+        formatted = format_task(raw, config)
+
+        print("─" * 60)
+        print(formatted)
+        print("─" * 60)
+
+        task_path = config.task_file
+        if os.path.exists(task_path):
+            answer = input(f"\n{task_path} already exists. Overwrite? [y/N] ").strip().lower()
+            if answer != "y":
+                print("Aborted.")
+                sys.exit(0)
+
+        Path(task_path).write_text(formatted)
+        print(f"\nSaved to {task_path}")
+
+        answer = input("Start the loop now? [Y/n] ").strip().lower()
+        if answer == "n":
+            sys.exit(0)
+        print()
 
     run(config)
 
