@@ -72,16 +72,17 @@ def confirm(message: str, default: bool = True) -> bool:
 
 
 def read_multiline(prompt_text: str) -> str:
-    """Paste-friendly multi-line input. Blank line to finish."""
+    """Paste-friendly multi-line input. Ctrl+D to finish.
+
+    Blank lines within the document are preserved — only EOF (Ctrl+D)
+    terminates input, so large pastes with paragraph breaks work correctly.
+    """
     console.print(f"[bold]{prompt_text}[/]")
-    console.print("[dim]  (press Enter on a blank line when you're done)[/]\n")
+    console.print("[dim]  (Ctrl+D to finish)[/]\n")
     lines: list[str] = []
     while True:
         try:
-            line = input()
-            if not line and lines:
-                break
-            lines.append(line)
+            lines.append(input())
         except EOFError:
             break
     return "\n".join(lines)

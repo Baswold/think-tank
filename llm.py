@@ -1,7 +1,21 @@
 """LLM interface — calls any OpenAI-compatible local server (LM Studio, Ollama, etc.)."""
 
 import os
+import re
 import requests
+
+
+def _strip_reasoning(text: str) -> str:
+    """Remove chain-of-thought tags emitted by reasoning models (QwQ, DeepSeek-R1, etc.).
+
+    Strips <think>...</think> / <thinking>...</thinking> blocks entirely,
+    then unwraps <answer>...</answer> tags keeping only the content inside.
+    """
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<thinking>.*?</thinking>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<answer>\s*", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s*</answer>", "", text, flags=re.IGNORECASE)
+    return text.strip()
 
 
 def list_models(base_url: str = "http://localhost:1234/v1", timeout: int = 5) -> list[str]:
@@ -46,4 +60,5 @@ def call(
 
     resp = requests.post(url, json=payload, headers=headers, timeout=timeout)
     resp.raise_for_status()
-    return resp.json()["choices"][0]["message"]["content"].strip()
+    raw = resp.json()["choices"][0]["message"]["content"]
+    return _strip_reasoning(raw)
