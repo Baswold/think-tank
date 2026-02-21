@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# Runtime outputs
+ideas/
+ideas_index.md
+.loop_state.json
+
+# Config overrides
+config.json
+
+# OS
+.DS_Store
+Thumbs.db
